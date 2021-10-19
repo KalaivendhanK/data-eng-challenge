@@ -27,9 +27,9 @@ catalog_data:
 	  find s3_data/data-bucket -name "*.csv" -exec echo "\copy game_stats from '{}' WITH (FORMAT csv, HEADER);" \; >> s3_data/load_data.sql
 
 run_sql: catalog_data 
-	docker exec \
-	  -w /data \
-	  $$(basename $(PWD))_db_1 \
+	winpty docker exec \
+	  -w //data \
+	  $$(basename $(PWD))-db-1 \
 	  psql -h db -U postgres -f s3_data/load_data.sql
 
 dbt_run:
@@ -54,6 +54,6 @@ points_leaders:
 	  -e PGPASSWORD=password \
 	  --entrypoint psql \
 	  postgres:12-alpine \
-	  -h localhost -U postgres -c "select * from points_leaders order by points limit 10;"
+	  -h localhost -U postgres -c "select * from points_leaders order by points desc limit 10;"
 	
 

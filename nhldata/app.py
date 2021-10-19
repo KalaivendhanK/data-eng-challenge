@@ -131,12 +131,14 @@ class Crawler():
 
         player_skaterStats = team_players['stats'].get('skaterStats', None)
         if player_skaterStats:
-            player_stats_skaterStats_assists = player_skaterStats['assists']
-            player_stats_skaterStats_goals = player_skaterStats['goals']
+            player_stats_skaterStats_assists = float(player_skaterStats['assists'])
+            player_stats_skaterStats_goals = float(player_skaterStats['goals'])
         else:
             return []
-        # print(player_person_id, player_person_currentTeam_name, player_person_fullName, player_stats_skaterStats_assists, player_stats_skaterStats_goals, side)
-        return [player_person_id, player_person_currentTeam_name, player_person_fullName, player_stats_skaterStats_assists, player_stats_skaterStats_goals, side]
+        # print(player_person_id, player_person_currentTeam_name, player_person_fullName,
+        # player_stats_skaterStats_assists, player_stats_skaterStats_goals, side)
+        return [player_person_id, player_person_currentTeam_name, player_person_fullName,
+                player_stats_skaterStats_assists, player_stats_skaterStats_goals, side]
 
     def crawl(self, startDate: datetime, endDate: datetime) -> None:
         nhlapi = NHLApi()
@@ -182,7 +184,8 @@ class Crawler():
         col_names = ["player_person_id", "player_person_currentTeam_name" , "player_person_fullName" , "player_stats_skaterStats_assists" , "player_stats_skaterStats_goals" ,"side"]
         df = pd.DataFrame(records, columns=col_names)
         df = df[df['player_person_id'].notna()]
-        df.to_csv('C:\Kalai\Learning\Testing\data-eng-challenge\s3_data\data-bucket\game-stats.csv', index=False, header=False)
+        df["player_person_id"] = pd.to_numeric(df["player_person_id"], downcast='integer')
+        df.to_csv('C:\Kalai\Learning\Testing\data-eng-challenge\s3_data\data-bucket\game-stats.csv', index=False)
         print(df)
         # NOTE the data direct from the API is not quite what we want. Its nested in a way we don't want
         #      so here we are looking for your ability to gently massage a data set.
