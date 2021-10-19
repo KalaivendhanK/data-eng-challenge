@@ -10,7 +10,7 @@ test:
 	pytest -vv
 
 clean:
-	sudo rm -rf s3_data && mkdir s3_data
+	rm -rf s3_data && mkdir s3_data
 
 mkbucket:
 	mkdir -p s3_data/data-bucket && touch s3_data/data-bucket/.gitkeep

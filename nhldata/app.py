@@ -13,6 +13,10 @@ import logging
 from pathlib import Path
 from datetime import datetime
 from dataclasses import dataclass
+
+import json
+from pprint import pprint
+
 import boto3
 import requests
 import pandas as pd
@@ -86,6 +90,7 @@ class NHLApi:
         return self._get(url)
 
     def _get(self, url, params=None):
+        print(url)
         response = requests.get(url, params=params)
         response.raise_for_status()
         return response.json()
@@ -117,14 +122,75 @@ class Crawler():
         self.api = api
         self.storage = storage
 
+    def parse_player_details(self, side, box_team_players, player_id_str):
+        team_players = box_team_players[player_id_str]
+        player_person = team_players['person']
+        player_person_id = player_person['id']
+        player_person_currentTeam_name = player_person['currentTeam']['name']
+        player_person_fullName = player_person['fullName']
+
+        player_skaterStats = team_players['stats'].get('skaterStats', None)
+        if player_skaterStats:
+            player_stats_skaterStats_assists = player_skaterStats['assists']
+            player_stats_skaterStats_goals = player_skaterStats['goals']
+        else:
+            return []
+        # print(player_person_id, player_person_currentTeam_name, player_person_fullName, player_stats_skaterStats_assists, player_stats_skaterStats_goals, side)
+        return [player_person_id, player_person_currentTeam_name, player_person_fullName, player_stats_skaterStats_assists, player_stats_skaterStats_goals, side]
+
     def crawl(self, startDate: datetime, endDate: datetime) -> None:
-	# NOTE the data direct from the API is not quite what we want. Its nested in a way we don't want
-	#      so here we are looking for your ability to gently massage a data set. 
+        nhlapi = NHLApi()
+        players_data = nhlapi.schedule(startDate, endDate)
+        # pprint(players_data)
+        dates = players_data['dates']
+        records = []
+        for date in dates:
+            # pprint(date)
+            games = date['games']
+            event_date = date['date']
+            print(f'event_date: {event_date}')
+            for game in games:
+                games_pk = game['gamePk']
+                # teams = game['teams']
+                # away_team = teams['away']['team']
+                # away_team_id = away_team['id']
+                # away_team_name = away_team['name']
+                # home_team = teams['home']['team']
+                # home_team_id = home_team['id']
+                # home_team_name = home_team['name']
+                # print(f'\taway_team_id: {away_team_id}, away_team_name: {away_team_name},\n\thome_team_id: {home_team_id},home_team_id: {home_team_name}')
+
+                nhlapi = NHLApi()
+                box_score_data = nhlapi.boxscore(games_pk)
+
+                # pprint(box_score_data)
+
+                box_teams = box_score_data['teams']
+                box_away_team = box_teams['away']
+                box_away_team_players = box_away_team['players']
+                box_home_team = box_teams['home']
+                box_home_team_players = box_home_team['players']
+                for player_id_str in box_away_team_players:
+                    away_result = self.parse_player_details("away", box_away_team_players, player_id_str)
+                    records.append(away_result)
+
+                for player_id_str in box_home_team_players:
+                    home_result = self.parse_player_details("home", box_home_team_players, player_id_str)
+                    records.append(home_result)
+
+        # print(records)
+        col_names = ["player_person_id", "player_person_currentTeam_name" , "player_person_fullName" , "player_stats_skaterStats_assists" , "player_stats_skaterStats_goals" ,"side"]
+        df = pd.DataFrame(records, columns=col_names)
+        df = df[df['player_person_id'].notna()]
+        df.to_csv('C:\Kalai\Learning\Testing\data-eng-challenge\s3_data\data-bucket\game-stats.csv', index=False, header=False)
+        print(df)
+        # NOTE the data direct from the API is not quite what we want. Its nested in a way we don't want
+        #      so here we are looking for your ability to gently massage a data set.
         #TODO error handling
         #TODO get games for dates
         #TODO for each game get all player stats: schedule -> date -> teams.[home|away] -> $playerId: player_object (see boxscore above)
         #TODO ignore goalies (players with "goalieStats")
-        #TODO output to S3 should be a csv that matches the schema of utils/create_games_stats 
+        #TODO output to S3 should be a csv that matches the schema of utils/create_games_stats
                  
 def main():
     import os
@@ -134,8 +200,8 @@ def main():
     args = parser.parse_args()
 
     dest_bucket = os.environ.get('DEST_BUCKET', 'output')
-    startDate = # TODO get this however but should be like datetime(2020,8,4)
-    endDate =   # TODO get this however but should be like datetime(2020,8,5)
+    startDate = datetime(2020,8,4)
+    endDate = datetime(2020,8,5)
     api = NHLApi()
     s3client = boto3.client('s3', config=Config(signature_version='s3v4'), endpoint_url=os.environ.get('S3_ENDPOINT_URL'))
     storage = Storage(dest_bucket, s3client)
